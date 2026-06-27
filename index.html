@@ -35,14 +35,13 @@
         let lastGenTime = 0;
         const genInterval = 45;
 
-        // ================= 核心黑科技：免文件！声卡芯片实时弹奏《特别的人》 =================
+
         let audioCtx = null;
         let musicIntervalId = null;
         let noteIdx = 0;
         let isPlaying = false;
 
-        // 《特别的人》高潮部分主旋律简谱代码频率（完美还原原版音调节奏）
-        // “而你~ 就是我~ 那个特别的人~ 懂我的人~”
+
         const specialPersonNotes = [
             440.00, 493.88, 523.25, 0,
             523.25, 523.25, 493.88, 440.00,
@@ -101,7 +100,7 @@
 
         document.addEventListener('click', toggleHardwareMusic);
         document.addEventListener('touchstart', toggleHardwareMusic, { passive: false });
-        // ======================================================================================
+
 
         for (let i = 0; i < 35; i++) {
             backgroundStars.push({ x: Math.random() * width, y: Math.random() * height, size: 0.8 + Math.random() * 1.8, alpha: Math.random(), speed: 0.008 + Math.random() * 0.012 });
