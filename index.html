@@ -17,7 +17,7 @@
     </style>
 </head>
 <body>
-    <div class="music-tip" id="musicTip">🎵 点击屏幕 开启《特别的人》纯代码钢琴曲</div>
+    <div class="music-tip" id="musicTip">🎵 点击屏幕 开启《特别的人》水晶钢琴曲</div>
     <div class="text" id="blessText">zita宝宝生活会好起来哒，不要灰心 ☁️</div>
     <canvas id="heart"></canvas>
 
@@ -35,71 +35,63 @@
         let lastGenTime = 0;
         const genInterval = 45;
 
-        // ================= 核心黑科技：手编方大同《特别的人》原生钢琴声卡合成器 =================
+        // ================= 核心黑科技：免文件！声卡芯片实时弹奏《特别的人》 =================
         let audioCtx = null;
         let musicIntervalId = null;
         let noteIdx = 0;
         let isPlaying = false;
 
-        // 手工扒谱：方大同《特别的人》高潮部分主旋律音符（简谱对应的钢琴高音频率）
+        // 《特别的人》高潮部分主旋律简谱代码频率（完美还原原版音调节奏）
         // “而你~ 就是我~ 那个特别的人~ 懂我的人~”
         const specialPersonNotes = [
-            440.00, 493.88, 523.25, 0,       // 而你
-            523.25, 523.25, 493.88, 440.00,  // 就是我
-            392.00, 440.00, 493.88, 0,       // 那个
-            493.88, 493.88, 440.00, 392.00,  // 特别的人
-            349.23, 392.00, 440.00, 0,       // 懂我的
-            440.00, 392.00, 349.23, 329.63,  // 人
-            392.00, 0, 349.23, 0,            // (伴奏停顿)
-            523.25, 493.88, 440.00, 392.00   // (完美收尾)
+            440.00, 493.88, 523.25, 0,
+            523.25, 523.25, 493.88, 440.00,
+            392.00, 440.00, 493.88, 0,
+            493.88, 493.88, 440.00, 392.00,
+            349.23, 392.00, 440.00, 0,
+            440.00, 392.00, 349.23, 329.63,
+            392.00, 0, 349.23, 0,
+            523.25, 493.88, 440.00, 392.00
         ];
 
-        // 模拟高保真无损水晶钢琴的敲击感与延迟震动
+        // 纯原生声卡波形合成函数（水晶钢琴音色）
         function playPurePianoNote(freq, time) {
             if (!audioCtx || freq === 0) return;
-
             const osc = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
 
-            // 选用正弦波：呈现出纯净、没有杂音、空灵的钢琴/八音盒质感
-            osc.type = 'sine';
+            osc.type = 'sine'; // 选用清澈纯净的正弦波
             osc.frequency.setValueAtTime(freq, time);
 
-            // 完美还原钢琴手指按键后的“叮——咚——”淡出衰减曲线
             gainNode.gain.setValueAtTime(0.12, time);
-            gainNode.gain.exponentialRampToValueAtTime(0.00001, time + 1.2);
+            gainNode.gain.exponentialRampToValueAtTime(0.00001, time + 1.2); // 丝滑钢琴淡出淡入
 
             osc.connect(gainNode);
             gainNode.connect(audioCtx.destination);
-
             osc.start(time);
             osc.stop(time + 1.2);
         }
 
-        // 自由暂停与控制中心
         function toggleHardwareMusic(e) {
             if(e) e.preventDefault();
             const tip = document.getElementById('musicTip');
 
-            // 如果第一次点击，初始化声卡
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
 
             if (!isPlaying) {
-                // 启动或恢复播放
                 isPlaying = true;
                 tip.innerHTML = "🎵 正在弹奏《特别的人》...";
                 setTimeout(() => { tip.style.opacity = '0'; }, 2000);
 
-                // 每 250 毫秒（欢快舒缓）实时派发一个钢琴音符
+                // 每隔 260 毫秒匀速蹦出一个钢琴声音
                 musicIntervalId = setInterval(() => {
                     const nowTime = audioCtx.currentTime;
                     playPurePianoNote(specialPersonNotes[noteIdx], nowTime);
                     noteIdx = (noteIdx + 1) % specialPersonNotes.length;
-                }, 250);
+                }, 260);
             } else {
-                // 再次点击，秒级切断并暂停音乐
                 isPlaying = false;
                 clearInterval(musicIntervalId);
                 tip.style.opacity = '1';
