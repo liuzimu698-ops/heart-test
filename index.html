@@ -4,39 +4,20 @@
     <meta charset="UTF-8">
     <title>给zita宝宝的星空大爱心</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #030712; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #030712; cursor: pointer; }
         canvas { position: absolute; width: 100%; height: 100%; }
-
-        /* 核心美化：注入高级云朵呼吸动效动画 */
         @keyframes cloudBreathe {
             0% { transform: translate(-50%, -50%) scale(0.96); text-shadow: 0 0 12px #bde0fe, 0 0 20px #ffafcc; }
             50% { transform: translate(-50%, -50%) scale(1.04); text-shadow: 0 0 18px #bde0fe, 0 0 30px #ffafcc, 0 0 40px #ffc6ff; }
             100% { transform: translate(-50%, -50%) scale(0.96); text-shadow: 0 0 12px #bde0fe, 0 0 20px #ffafcc; }
         }
-
-        .text {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) scale(0.96);
-            color: #f0f7ff;
-            font-size: 24px;
-            font-family: "Microsoft YaHei", sans-serif;
-            pointer-events: none;
-            z-index: 20;
-            opacity: 0;
-            white-space: nowrap;
-            text-align: center;
-        }
-        /* 触发显示后激活无限呼吸循环 */
-        .text.active {
-            opacity: 1;
-            transition: opacity 2s ease-in-out;
-            animation: cloudBreathe 3.5s ease-in-out infinite;
-        }
+        .text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.96); color: #f0f7ff; font-size: 24px; font-family: "Microsoft YaHei", sans-serif; pointer-events: none; z-index: 20; opacity: 0; white-space: nowrap; text-align: center; }
+        .text.active { opacity: 1; transition: opacity 2s ease-in-out; animation: cloudBreathe 3.5s ease-in-out infinite; }
+        .music-tip { position: absolute; top: 20px; right: 20px; color: rgba(189, 224, 254, 0.7); font-size: 13px; font-family: "Microsoft YaHei", sans-serif; z-index: 30; pointer-events: none; transition: opacity 0.8s; background: rgba(255,255,255,0.05); padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(189, 224, 254, 0.2); }
     </style>
 </head>
 <body>
+    <div class="music-tip" id="musicTip">🎵 点击屏幕 开启《特别的人》纯代码钢琴曲</div>
     <div class="text" id="blessText">zita宝宝生活会好起来哒，不要灰心 ☁️</div>
     <canvas id="heart"></canvas>
 
@@ -47,152 +28,132 @@
         let height = canvas.height = window.innerHeight;
 
         const particles = [];
-        const backgroundStars = []; // 美化：背景星光数组
+        const backgroundStars = [];
         let currentT = 0;
         const totalDuration = Math.PI * 2;
         let isHeartFormed = false;
-
         let lastGenTime = 0;
         const genInterval = 45;
 
-        // 1. 初始化华丽背景夜空星光
+        // ================= 核心黑科技：手编方大同《特别的人》原生钢琴声卡合成器 =================
+        let audioCtx = null;
+        let musicIntervalId = null;
+        let noteIdx = 0;
+        let isPlaying = false;
+
+        // 手工扒谱：方大同《特别的人》高潮部分主旋律音符（简谱对应的钢琴高音频率）
+        // “而你~ 就是我~ 那个特别的人~ 懂我的人~”
+        const specialPersonNotes = [
+            440.00, 493.88, 523.25, 0,       // 而你
+            523.25, 523.25, 493.88, 440.00,  // 就是我
+            392.00, 440.00, 493.88, 0,       // 那个
+            493.88, 493.88, 440.00, 392.00,  // 特别的人
+            349.23, 392.00, 440.00, 0,       // 懂我的
+            440.00, 392.00, 349.23, 329.63,  // 人
+            392.00, 0, 349.23, 0,            // (伴奏停顿)
+            523.25, 493.88, 440.00, 392.00   // (完美收尾)
+        ];
+
+        // 模拟高保真无损水晶钢琴的敲击感与延迟震动
+        function playPurePianoNote(freq, time) {
+            if (!audioCtx || freq === 0) return;
+
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            // 选用正弦波：呈现出纯净、没有杂音、空灵的钢琴/八音盒质感
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, time);
+
+            // 完美还原钢琴手指按键后的“叮——咚——”淡出衰减曲线
+            gainNode.gain.setValueAtTime(0.12, time);
+            gainNode.gain.exponentialRampToValueAtTime(0.00001, time + 1.2);
+
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            osc.start(time);
+            osc.stop(time + 1.2);
+        }
+
+        // 自由暂停与控制中心
+        function toggleHardwareMusic(e) {
+            if(e) e.preventDefault();
+            const tip = document.getElementById('musicTip');
+
+            // 如果第一次点击，初始化声卡
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            if (!isPlaying) {
+                // 启动或恢复播放
+                isPlaying = true;
+                tip.innerHTML = "🎵 正在弹奏《特别的人》...";
+                setTimeout(() => { tip.style.opacity = '0'; }, 2000);
+
+                // 每 250 毫秒（欢快舒缓）实时派发一个钢琴音符
+                musicIntervalId = setInterval(() => {
+                    const nowTime = audioCtx.currentTime;
+                    playPurePianoNote(specialPersonNotes[noteIdx], nowTime);
+                    noteIdx = (noteIdx + 1) % specialPersonNotes.length;
+                }, 250);
+            } else {
+                // 再次点击，秒级切断并暂停音乐
+                isPlaying = false;
+                clearInterval(musicIntervalId);
+                tip.style.opacity = '1';
+                tip.innerHTML = "⏸ 钢琴曲已暂停（点击屏幕继续）";
+            }
+        }
+
+        document.addEventListener('click', toggleHardwareMusic);
+        document.addEventListener('touchstart', toggleHardwareMusic, { passive: false });
+        // ======================================================================================
+
         for (let i = 0; i < 35; i++) {
-            backgroundStars.push({
-                x: Math.random() * width,
-                y: Math.random() * height,
-                size: 0.8 + Math.random() * 1.8,
-                alpha: Math.random(),
-                speed: 0.008 + Math.random() * 0.012
-            });
+            backgroundStars.push({ x: Math.random() * width, y: Math.random() * height, size: 0.8 + Math.random() * 1.8, alpha: Math.random(), speed: 0.008 + Math.random() * 0.012 });
         }
 
         function drawOfficialCinnamoroll(ctx, x, y, size) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.shadowColor = "rgba(189, 224, 254, 0.2)"; // 柔和的浅蓝发光边缘
-            ctx.shadowBlur = 5;
-            ctx.fillStyle = "#ffffff";
-            ctx.strokeStyle = "#c9d6ea";
-            ctx.lineWidth = 1.8;
-
-            ctx.beginPath();
-            ctx.ellipse(-size * 0.65, 0, size * 0.45, size * 0.22, -Math.PI / 8, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.ellipse(size * 0.65, 0, size * 0.45, size * 0.22, Math.PI / 8, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.ellipse(0, 0, size * 0.52, size * 0.42, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = "#2b82c9";
-            ctx.beginPath();
-            ctx.arc(-size * 0.18, 0, size * 0.05, 0, Math.PI * 2);
-            ctx.arc(size * 0.18, 0, size * 0.05, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.fillStyle = "#ffffff";
-            ctx.beginPath();
-            ctx.arc(-size * 0.20, -size * 0.02, size * 0.015, 0, Math.PI * 2);
-            ctx.arc(size * 0.16, -size * 0.02, size * 0.015, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.fillStyle = "rgba(255, 182, 193, 0.85)"; // 更有气色的腮红
-            ctx.beginPath();
-            ctx.ellipse(-size * 0.32, size * 0.1, size * 0.08, size * 0.05, 0, 0, Math.PI * 2);
-            ctx.ellipse(size * 0.32, size * 0.1, size * 0.08, size * 0.05, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.strokeStyle = "#2b82c9";
-            ctx.lineWidth = 2;
-            ctx.lineCap = "round";
-            ctx.beginPath();
-            ctx.arc(0, size * 0.02, size * 0.06, 0.1 * Math.PI, 0.9 * Math.PI);
-            ctx.stroke();
-
-            ctx.restore();
+            ctx.save(); ctx.translate(x, y); ctx.shadowColor = "rgba(189, 224, 254, 0.2)"; ctx.shadowBlur = 5; ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "#c9d6ea"; ctx.lineWidth = 1.8;
+            ctx.beginPath(); ctx.ellipse(-size * 0.65, 0, size * 0.45, size * 0.22, -Math.PI / 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.ellipse(size * 0.65, 0, size * 0.45, size * 0.22, Math.PI / 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.ellipse(0, 0, size * 0.52, size * 0.42, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            ctx.shadowBlur = 0; ctx.fillStyle = "#2b82c9"; ctx.beginPath(); ctx.arc(-size * 0.18, 0, size * 0.05, 0, Math.PI * 2); ctx.arc(size * 0.18, 0, size * 0.05, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(-size * 0.20, -size * 0.02, size * 0.015, 0, Math.PI * 2); ctx.arc(size * 0.16, -size * 0.02, size * 0.015, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "rgba(255, 182, 193, 0.85)"; ctx.beginPath(); ctx.ellipse(-size * 0.32, size * 0.1, size * 0.08, size * 0.05, 0, 0, Math.PI * 2); ctx.ellipse(size * 0.32, size * 0.1, size * 0.08, size * 0.05, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = "#2b82c9"; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.beginPath(); ctx.arc(0, size * 0.02, size * 0.06, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke(); ctx.restore();
         }
 
-        function getHeartPoint(t) {
-            return {
-                x: 16 * Math.pow(Math.sin(t), 3),
-                y: -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t))
-            };
-        }
+        function getHeartPoint(t) { return { x: 16 * Math.pow(Math.sin(t), 3), y: -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) }; }
 
         function createStepParticle(t) {
-            const point = getHeartPoint(t);
-            const scale = 24;
-            particles.push({
-                x: width / 2 + point.x * scale,
-                y: height / 2 + point.y * scale,
-                vx: (Math.random() - 0.5) * 0.08,
-                vy: (Math.random() - 0.5) * 0.08,
-                size: 52 + Math.random() * 5,
-                rotation: (Math.random() - 0.5) * 0.04
-            });
+            const point = getHeartPoint(t); const scale = 24;
+            particles.push({ x: width / 2 + point.x * scale, y: height / 2 + point.y * scale, vx: (Math.random() - 0.5) * 0.08, vy: (Math.random() - 0.5) * 0.08, size: 52 + Math.random() * 5, rotation: (Math.random() - 0.5) * 0.04 });
         }
 
         function draw() {
             ctx.clearRect(0, 0, width, height);
-
-            // 2. 先渲染精美的闪烁夜空背景
             for (let i = 0; i < backgroundStars.length; i++) {
-                const s = backgroundStars[i];
-                s.alpha += s.speed;
-                if (s.alpha > 1 || s.alpha < 0.1) s.speed = -s.speed; // 来回闪烁
-                ctx.fillStyle = `rgba(189, 224, 254, ${s.alpha})`;
-                ctx.beginPath();
-                ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-                ctx.fill();
+                const s = backgroundStars[i]; s.alpha += s.speed; if (s.alpha > 1 || s.alpha < 0.1) s.speed = -s.speed;
+                ctx.fillStyle = `rgba(189, 224, 254, ${s.alpha})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2); ctx.fill();
             }
-
             const now = Date.now();
-
             if (currentT < totalDuration) {
-                if (now - lastGenTime >= genInterval) {
-                    createStepParticle(currentT);
-                    currentT += 0.07;
-                    lastGenTime = now;
-                }
+                if (now - lastGenTime >= genInterval) { createStepParticle(currentT); currentT += 0.07; lastGenTime = now; }
             } else if (!isHeartFormed) {
-                isHeartFormed = true;
-                // 激活高级呼吸类名
-                document.getElementById('blessText').classList.add('active');
+                isHeartFormed = true; document.getElementById('blessText').classList.add('active');
             }
-
             for (let i = 0; i < particles.length; i++) {
-                const p = particles[i];
-                p.x += p.vx;
-                p.y += p.vy;
-
-                let finalX = p.x;
-                let finalY = p.y;
-                if (isHeartFormed) {
-                    const pulse = 1 + 0.02 * Math.sin(Date.now() / 280);
-                    finalX = (p.x - width / 2) * pulse + width / 2;
-                    finalY = (p.y - height / 2) * pulse + height / 2;
-                }
-
+                const p = particles[i]; p.x += p.vx; p.y += p.vy; let finalX = p.x; let finalY = p.y;
+                if (isHeartFormed) { const pulse = 1 + 0.02 * Math.sin(Date.now() / 280); finalX = (p.x - width / 2) * pulse + width / 2; finalY = (p.y - height / 2) * pulse + height / 2; }
                 drawOfficialCinnamoroll(ctx, finalX, finalY, p.size);
             }
-
             requestAnimationFrame(draw);
         }
 
-        window.addEventListener('resize', () => {
-            width = canvas.width = window.innerWidth;
-            height = canvas.height = window.innerHeight;
-            // 屏幕尺寸改变时重置星光坐标
-            backgroundStars.forEach(s => { s.x = Math.random() * width; s.y = Math.random() * height; });
-        });
-
+        window.addEventListener('resize', () => { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; backgroundStars.forEach(s => { s.x = Math.random() * width; s.y = Math.random() * height; }); });
         draw();
     </script>
 </body>
